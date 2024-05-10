@@ -12,8 +12,7 @@ terraform {
 provider "aws" {
   region = var.region
   assume_role {
-    role_arn    = "arn:aws:iam::905418336656:role/terraform-deployment-role"
-    external_id = "849376502384692384"
+    role_arn = "arn:aws:iam::905418336656:role/terraform-deployment-role"
   }
 }
 

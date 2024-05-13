@@ -3,7 +3,7 @@ include {
 }
 
 terraform {
-    source = "git::https://github.com/kunduso/add-aws-elb-ec2-terraform.git?ref=main"
+    #source = "git::https://github.com/kunduso/add-aws-elb-ec2-terraform.git?ref=main"
 }
 
 inputs = {

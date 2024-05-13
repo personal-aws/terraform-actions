@@ -3,7 +3,7 @@ include {
 }
 
 terraform {
-    source  = "terraform-aws-modules/s3-bucket/aws//examples/complete"
+    source = "git::https://github.com/kunduso/add-aws-elb-ec2-terraform.git?ref=main"
 }
 # inputs = {
 #     region = local.aws_region

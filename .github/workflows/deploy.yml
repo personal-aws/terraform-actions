@@ -1,0 +1,177 @@
+name: 'Deploy resources to each AWS account'
+on:
+  workflow_call:
+    inputs:
+      # working-directory is the location from where this workflow will be triggered
+      working-directory:
+        required: true
+        type: string
+        default: '.'
+      environment:
+        required: true
+        type: string
+        default: '.'
+permissions:
+  actions: none
+  checks: none
+  contents: read
+  deployments: none
+  id-token: write
+  issues: none
+  discussions: none
+  packages: none
+  pages: none
+  pull-requests: write
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials Action For GitHub Actions
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+        role-to-assume: ${{ secrets.IAM_ROLE }}
+        role-session-name: AWSSession
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Setup Infracost
+      uses: infracost/actions/setup@v2
+      if: github.event_name == 'pull_request'
+      # See https://github.com/infracost/actions/tree/master/setup for other inputs
+      # If you can't use this action, see Docker images in https://infracost.io/cicd
+      with:
+        api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      # Checkout the base branch of the pull request (e.g. main/master).
+    - name: Checkout base branch
+      if: ${{ (github.event_name == 'pull_request') && (vars.INFRACOST_SCAN_TYPE  == 'hcl_code') }}
+      uses: actions/checkout@v3
+      with:
+        ref: '${{ github.event.pull_request.base.ref }}'
+      
+    # Generate Infracost JSON file as the baseline.
+    - name: Generate Infracost cost estimate baseline
+      if: ${{ (github.event_name == 'pull_request') && (vars.INFRACOST_SCAN_TYPE  == 'hcl_code') }}
+      run: |
+        infracost breakdown --path=. \
+                            --format=json \
+                            --out-file=/tmp/infracost-base.json
+
+    # Checkout the current PR branch so we can create a diff.
+    - name: Checkout PR branch
+      if: ${{ (github.event_name == 'pull_request') && (vars.INFRACOST_SCAN_TYPE  == 'hcl_code') }}
+      uses: actions/checkout@v3
+
+    # Generate an Infracost diff and save it to a JSON file.
+    - name: Generate Infracost diff
+      if: ${{ (github.event_name == 'pull_request') && (vars.INFRACOST_SCAN_TYPE  == 'hcl_code') }}
+      run: |
+        infracost diff --path=. \
+                        --format=json \
+                        --compare-to=/tmp/infracost-base.json \
+                        --out-file=/tmp/infracost.json
+
+    # Install the latest version of Terragrunt CLI and configure the Terragrunt CLI configuration file with a Terragrunt Cloud user API token
+    - name: Setup Terraform v1.2.6
+      uses: hashicorp/setup-Terraform@v1
+      with:
+        terraform_version: 1.2.6
+        terraform_wrapper: true
+    - name: Setup Terraform version
+      run: terraform --version
+    - name: Setup Terraform wrapper path
+      run: which terraform
+
+    - name: Setup Terragrunt v0.38.4
+      run: |
+        sudo wget -q -O /bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v0.38.4/terragrunt_linux_amd64"
+        sudo chmod +x /bin/terragrunt
+        terragrunt -v
+
+    # Initialize a new or existing Terragrunt working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terragrunt Init
+      id: init
+      run: terragrunt init --terragrunt-non-interactive --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
+
+    # Checks that all Terraform configuration files are correctly written
+    - name: Terragrunt Validate
+      id: validate
+      run: terragrunt validate -no-color --terragrunt-non-interactive --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
+
+    # Generates an execution plan for Terragrunt
+    - name: Terragrunt Plan
+      id: plan
+      if: github.ref != 'refs/heads/main' || github.event_name == 'pull_request'
+      run: terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
+
+     # Generate an Infracost diff and save it to a JSON file.
+    - name: Generate Infracost diff
+      if:  ${{ (github.event_name == 'pull_request') && (vars.INFRACOST_SCAN_TYPE  == 'tf_plan') }}
+      run: |
+       infracost breakdown --path=. \
+                      --format=json \
+                      --out-file=/tmp/infracost.json
+
+    - name: Post Infracost comment
+      if: github.event_name == 'pull_request'
+      run: |
+         infracost comment github --path=/tmp/infracost.json \
+                                   --repo=$GITHUB_REPOSITORY \
+                                   --github-token=${{github.token}} \
+                                   --pull-request=${{github.event.pull_request.number}} \
+                                   --show-skipped \
+                                   --behavior=new
+    
+      # Updates the pull request with details for the reviewer to evaluate the PR
+    - name: Update Pull Request
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "Terraform plan for Environment: ${{ inputs.environment }}\n${{ steps.plan.outputs.stdout }}"
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const output = `#### Terraform run for ${{ inputs.environment }}\`
+          #### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+
+          <details><summary>Show Plan</summary>
+
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+
+          </details>
+
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+    - name: Terragrunt Apply
+      if: (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/feature-')) || (github.event_name == 'pull_request' && github.ref == 'refs/heads/main')
+      run: terragrunt apply -auto-approve --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
+        
+    #   # On push to main, build or change infrastructure according to Terragrunt configuration files
+    #   # Note: It is recommended to set up a required "strict" status check in your repository for "Terragrunt Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+    # - name: Terragrunt Apply
+    #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    #   run: terragrunt apply -auto-approve --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"

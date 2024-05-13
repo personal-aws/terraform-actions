@@ -1,0 +1,34 @@
+repos:
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.50.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+      # #   exclude: '\.terraform\.lock\.hcl$'
+      # - id: terraform_docs
+      # - id: terraform_docs_without_aggregate_type_defaults
+      # - id: terraform_tflint
+      #   args:
+      #     - "--args=--only=terraform_deprecated_interpolation"
+      #     - "--args=--only=terraform_deprecated_index"
+      #     - "--args=--only=terraform_unused_declarations"
+      #     - "--args=--only=terraform_comment_syntax"
+      #     - "--args=--only=terraform_documented_outputs"
+      #     - "--args=--only=terraform_documented_variables"
+      #     - "--args=--only=terraform_typed_variables"
+      #     - "--args=--only=terraform_module_pinned_source"
+      #     - "--args=--only=terraform_naming_convention"
+      #     - "--args=--only=terraform_workspace_remote"
+  # To lean more about the pre-commit-hooks refer to readme file at https://github.com/pre-commit/pre-commit-hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+      - id: detect-aws-credentials
+        args: ["--allow-missing-credentials"]
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+      - id: check-yaml
+      - id: check-json

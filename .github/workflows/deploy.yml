@@ -114,7 +114,7 @@ jobs:
     - name: Terragrunt Plan
       id: plan
       if: github.ref != 'refs/heads/main' || github.event_name == 'pull_request'
-      run: terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
+      run: terragrunt plan -no-color --terragrunt-non-interactive -out=TFplan.JSON --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
 
      # Generate an Infracost diff and save it to a JSON file.
     - name: Generate Infracost diff

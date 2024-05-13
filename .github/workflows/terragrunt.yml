@@ -50,6 +50,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'feature-*'
     paths-ignore:
       - '**/README.md'
 
@@ -71,7 +72,7 @@ jobs:
 
   DeployToProd:
     name: 'deploy-to-production'
-    if: github.event_name == 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     needs: DeployToDev
     permissions:
       pull-requests: write

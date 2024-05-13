@@ -66,7 +66,7 @@ jobs:
     # Initialize a new or existing Terragrunt working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terragrunt Init
       id: init
-      run: terragrunt init --terragrunt-non-interactive --terragrunt-iam-role "arn:aws:iam::${{ secrets.ACCOUNTNUMBER }}:role/terragrunt-role"
+      run: terragrunt init --terragrunt-non-interactive --terragrunt-iam-role "arn:aws:iam::905418336656:role/terragrunt-role"
 
     # Checks that all Terraform configuration files are correctly written
     - name: Terragrunt Validate

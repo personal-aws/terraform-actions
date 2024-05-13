@@ -34,6 +34,6 @@ jobs:
 
     uses: ./.github/workflows/deploy.yml
     with:
-      working-directory: ./environment/test/us-east-1/infra
+      working-directory: ./environment/production/us-east-1/infra
       environment: production
     secrets: inherit
